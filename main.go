@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+type cleanupFunc func() error
+
 func main() {
 	log.SetPrefix("repokey: ")
 	log.SetFlags(0)
@@ -37,52 +39,15 @@ func main() {
 	keyName := strings.TrimLeft(repoPath, "/")
 	keyName = strings.ReplaceAll(keyName, "/", "_")
 
-	var keyPath string
-
-	{
-		tryKeyPath := fmt.Sprintf("git_ssh_key_%s", keyName)
-		_, err := os.Stat(tryKeyPath)
-		if err == nil {
-			log.Printf("got key override at path %s", tryKeyPath)
-
-			keyPath, err = filepath.Abs(tryKeyPath)
+	keyPath, cleanup := getKeyPath(keyName)
+	defer func() {
+		if cleanup != nil {
+			err := cleanup()
 			if err != nil {
-				log.Printf("couldn't make %q absolute: %v", tryKeyPath, err)
-				keyPath = tryKeyPath
+				log.Printf("cleanup error: %+v", err)
 			}
-		} else {
-			log.Printf("no key override at path %s", tryKeyPath)
 		}
-	}
-
-	{
-		envName := fmt.Sprintf("GIT_SSH_KEY_%s", strings.ToUpper(keyName))
-		if keyStr := os.Getenv(envName); keyStr != "" {
-			log.Printf("got key override from ENV %s", envName)
-			tmpFile, err := os.CreateTemp(os.TempDir(), "repokey-*")
-			if err != nil {
-				panic(fmt.Errorf("error creating temp file: %+v", err))
-			}
-			_, err = tmpFile.WriteString(keyStr)
-			if err != nil {
-				panic(fmt.Errorf("error writing key to temp file: %+v", err))
-			}
-			err = tmpFile.Close()
-			if err != nil {
-				panic(fmt.Errorf("error closing temp file: %+v", err))
-			}
-			err = os.Chmod(tmpFile.Name(), 0600)
-			if err != nil {
-				panic(fmt.Errorf("error chmod'ing temp file: %+v", err))
-			}
-			defer func() {
-				_ = os.Remove(tmpFile.Name())
-			}()
-			keyPath = tmpFile.Name()
-		} else {
-			log.Printf("no key override in ENV %s", envName)
-		}
-	}
+	}()
 
 	if keyPath != "" {
 		sshParams = append([]string{"-i", keyPath}, sshParams...)
@@ -101,4 +66,67 @@ func main() {
 		}
 		os.Exit(1)
 	}
+}
+
+func getKeyPath(keyName string) (string, cleanupFunc) {
+	{
+		tryKeyPath := fmt.Sprintf("git_ssh_key_%s", keyName)
+		if keyPath := tryKeyAtPath(tryKeyPath); keyPath != "" {
+			return keyPath, nil
+		}
+	}
+
+	{
+		envName := fmt.Sprintf("GIT_SSH_KEY_%s", strings.ToUpper(keyName))
+		if keyStr := os.Getenv(envName); keyStr != "" {
+			log.Printf("got key override from ENV %s", envName)
+			if keyPath := tryKeyAtPath(keyStr); keyPath != "" {
+				return keyPath, nil
+			}
+
+			tmpFile, err := os.CreateTemp(os.TempDir(), "repokey-*")
+			if err != nil {
+				panic(fmt.Errorf("error creating temp file: %+v", err))
+			}
+			_, err = tmpFile.WriteString(keyStr)
+			if err != nil {
+				panic(fmt.Errorf("error writing key to temp file: %+v", err))
+			}
+			err = tmpFile.Close()
+			if err != nil {
+				panic(fmt.Errorf("error closing temp file: %+v", err))
+			}
+			err = os.Chmod(tmpFile.Name(), 0600)
+			if err != nil {
+				panic(fmt.Errorf("error chmod'ing temp file: %+v", err))
+			}
+			return tmpFile.Name(), func() error {
+				return os.Remove(tmpFile.Name())
+			}
+
+		} else {
+			log.Printf("no key override in ENV %s", envName)
+		}
+	}
+
+	return "", nil
+
+}
+
+func tryKeyAtPath(keyPath string) string {
+	_, err := os.Stat(keyPath)
+	if err == nil {
+		log.Printf("got key override at path %s", keyPath)
+
+		keyPathAbs, err := filepath.Abs(keyPath)
+		if err == nil {
+			return keyPathAbs
+		}
+		log.Printf("couldn't make %q absolute: %v", keyPath, err)
+		return keyPath
+	} else {
+		log.Printf("no key override at path %s", keyPath)
+	}
+
+	return ""
 }
