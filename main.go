@@ -14,13 +14,14 @@ func main() {
 	log.SetPrefix("repokey: ")
 	log.SetFlags(0)
 
-	cwd, err := os.Getwd()
-	log.Printf("cwd: %s", cwd)
+	cwd, _ := os.Getwd()
+	bin, _ := os.Executable()
 
 	sshParams := os.Args[1:]
 	if len(sshParams) == 0 {
-		log.Fatalf("Usage: GIT_SSH_COMMAND=%s git clone ...", os.Args[0])
+		log.Fatalf("Usage: GIT_SSH_COMMAND=%s git clone ...", bin)
 	}
+	log.Printf("cwd: %s", cwd)
 	log.Printf("ssh params: %#v", sshParams)
 	remoteCmd := sshParams[len(sshParams)-1]
 	remoteCmdParts, err := shlex.Split(remoteCmd)
