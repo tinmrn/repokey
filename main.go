@@ -62,7 +62,7 @@ func main() {
 	sshCmd.Stderr = os.Stderr
 	err = sshCmd.Run()
 	if err != nil {
-		log.Printf("error running ssh: %+v", err)
+		log.Printf("error running ssh: %v", err)
 		if exitErr, is := err.(*exec.ExitError); is {
 			os.Exit(exitErr.ExitCode())
 		}
@@ -88,19 +88,19 @@ func getKeyPath(keyName string) (string, cleanupFunc) {
 
 			tmpFile, err := os.CreateTemp(os.TempDir(), "repokey-*")
 			if err != nil {
-				panic(fmt.Errorf("error creating temp file: %+v", err))
+				panic(fmt.Errorf("error creating temp file: %v", err))
 			}
 			_, err = tmpFile.WriteString(keyStr)
 			if err != nil {
-				panic(fmt.Errorf("error writing key to temp file: %+v", err))
+				panic(fmt.Errorf("error writing key to temp file: %v", err))
 			}
 			err = tmpFile.Close()
 			if err != nil {
-				panic(fmt.Errorf("error closing temp file: %+v", err))
+				panic(fmt.Errorf("error closing temp file: %v", err))
 			}
 			err = os.Chmod(tmpFile.Name(), 0600)
 			if err != nil {
-				panic(fmt.Errorf("error chmod'ing temp file: %+v", err))
+				panic(fmt.Errorf("error chmod'ing temp file: %v", err))
 			}
 			return tmpFile.Name(), func() error {
 				return os.Remove(tmpFile.Name())
@@ -119,6 +119,10 @@ func tryKeyAtPath(keyPath string) string {
 	_, err := os.Stat(keyPath)
 	if err == nil {
 		log.Printf("got key override at path %s", keyPath)
+		err = os.Chmod(keyPath, 0600)
+		if err != nil {
+			log.Printf("error chmod'ing key path %s: %v", keyPath, err)
+		}
 
 		keyPathAbs, err := filepath.Abs(keyPath)
 		if err == nil {
