@@ -30,34 +30,55 @@ func main() {
 	//ssh := exec.Command("ssh")
 	keyName := strings.TrimLeft(repoPath, "/")
 	keyName = strings.ReplaceAll(keyName, "/", "_")
-	keyName = strings.ToUpper(keyName)
-	envName := fmt.Sprintf("GIT_SSH_KEY_%s", keyName)
-	if keyStr := os.Getenv(envName); keyStr != "" {
-		log.Printf("got key override from ENV %s", envName)
-		tmpFile, err := os.CreateTemp(os.TempDir(), "repokey-*")
-		if err != nil {
-			panic(fmt.Errorf("error creating temp file: %+v", err))
+
+	var keyPath string
+
+	{
+		tryKeyPath := fmt.Sprintf("git_ssh_key_%s", keyName)
+		_, err := os.Stat(tryKeyPath)
+		if err == nil {
+			log.Printf("got key override at path %s", tryKeyPath)
+			// @todo make abs
+			keyPath = tryKeyPath
+		} else {
+			log.Printf("no key override at path %s", tryKeyPath)
 		}
-		_, err = tmpFile.WriteString(keyStr)
-		if err != nil {
-			panic(fmt.Errorf("error writing key to temp file: %+v", err))
-		}
-		err = tmpFile.Close()
-		if err != nil {
-			panic(fmt.Errorf("error closing temp file: %+v", err))
-		}
-		err = os.Chmod(tmpFile.Name(), 0600)
-		if err != nil {
-			panic(fmt.Errorf("error chmod'ing temp file: %+v", err))
-		}
-		defer func() {
-			_ = os.Remove(tmpFile.Name())
-		}()
-		sshParams = append([]string{"-i", tmpFile.Name()}, sshParams...)
-		log.Printf("new ssh params: %#v", sshParams)
-	} else {
-		log.Printf("no key override in ENV %s", envName)
 	}
+
+	{
+		envName := fmt.Sprintf("GIT_SSH_KEY_%s", strings.ToUpper(keyName))
+		if keyStr := os.Getenv(envName); keyStr != "" {
+			log.Printf("got key override from ENV %s", envName)
+			tmpFile, err := os.CreateTemp(os.TempDir(), "repokey-*")
+			if err != nil {
+				panic(fmt.Errorf("error creating temp file: %+v", err))
+			}
+			_, err = tmpFile.WriteString(keyStr)
+			if err != nil {
+				panic(fmt.Errorf("error writing key to temp file: %+v", err))
+			}
+			err = tmpFile.Close()
+			if err != nil {
+				panic(fmt.Errorf("error closing temp file: %+v", err))
+			}
+			err = os.Chmod(tmpFile.Name(), 0600)
+			if err != nil {
+				panic(fmt.Errorf("error chmod'ing temp file: %+v", err))
+			}
+			defer func() {
+				_ = os.Remove(tmpFile.Name())
+			}()
+			keyPath = tmpFile.Name()
+		} else {
+			log.Printf("no key override in ENV %s", envName)
+		}
+	}
+
+	if keyPath != "" {
+		sshParams = append([]string{"-i", keyPath}, sshParams...)
+		log.Printf("new ssh params: %#v", sshParams)
+	}
+
 	sshCmd := exec.Command("ssh", sshParams...)
 	sshCmd.Stdin = os.Stdin
 	sshCmd.Stdout = os.Stdout
