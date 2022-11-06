@@ -54,6 +54,8 @@ func main() {
 		log.Printf("new ssh params: %#v", sshParams)
 	}
 
+	sshParams = append([]string{"-o", "StrictHostKeyChecking=no"}, sshParams...)
+
 	sshCmd := exec.Command("ssh", sshParams...)
 	sshCmd.Stdin = os.Stdin
 	sshCmd.Stdout = os.Stdout
