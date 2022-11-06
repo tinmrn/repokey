@@ -13,6 +13,10 @@ import (
 func main() {
 	log.SetPrefix("repokey: ")
 	log.SetFlags(0)
+
+	cwd, err := os.Getwd()
+	log.Printf("cwd: %s", cwd)
+
 	sshParams := os.Args[1:]
 	if len(sshParams) == 0 {
 		log.Fatalf("Usage: GIT_SSH_COMMAND=%s git clone ...", os.Args[0])
