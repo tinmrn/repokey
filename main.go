@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -38,8 +39,12 @@ func main() {
 		_, err := os.Stat(tryKeyPath)
 		if err == nil {
 			log.Printf("got key override at path %s", tryKeyPath)
-			// @todo make abs
-			keyPath = tryKeyPath
+
+			keyPath, err = filepath.Abs(tryKeyPath)
+			if err != nil {
+				log.Printf("couldn't make %q absolute: %v", tryKeyPath, err)
+				keyPath = tryKeyPath
+			}
 		} else {
 			log.Printf("no key override at path %s", tryKeyPath)
 		}
